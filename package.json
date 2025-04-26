@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-  "build": "webpack --config webpack.config.js",
-  "start": "node server.js"
-},
+    "build": "webpack --config webpack.config.js",
+    "start": "node server.js"
+  },
   "author": "",
   "license": "ISC",
   "description": "",
@@ -13,5 +13,8 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "mongoose": "^8.14.0"
+  },
+  "devDependencies": {
+    "webpack-cli": "^6.0.1"
   }
 }
