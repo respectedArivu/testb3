@@ -60,3 +60,6 @@ app.get("/get-user/:userId", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+app.get('/', (req, res) => {
+    res.send('Hello, this is the backend server!');
+  });
