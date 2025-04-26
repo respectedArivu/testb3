@@ -13,7 +13,7 @@ app.use(express.json()); // To handle JSON body data
 
 // MongoDB Connection URI (You can replace it with your own MongoDB URI directly here)
 const MONGO_URI = "mongodb+srv://arivu:1234@cluster0.jdkdlsa.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";  // Replace with your actual MongoDB URI
-const PORT = 5000;  // Set the port to 5000 or any other port you prefer
+
 
 // MongoDB connection setup using Mongoose
 mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
@@ -57,6 +57,7 @@ app.get("/get-user/:userId", async (req, res) => {
 });
 
 // Start the Express server
+const PORT = process.env.PORT || 5000; 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
