@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "build": "webpack --config webpack.config.js",
-    "start": "node server.js"
-  },
+  "build": "echo 'No build step for backend' && exit 0",
+  "start": "node server.js"
+}
+,
   "author": "",
   "license": "ISC",
   "description": "",
