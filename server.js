@@ -1,19 +1,23 @@
+
 // server.js
 
 // Importing required dependencies
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const { OAuth2Client } = require('google-auth-library'); // Added for Google Auth
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
+const axios = require("axios");
 
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json()); // To handle JSON body data
+app.use(cookieParser()); // To handle cookies for session management
 
-// MongoDB Connection URI (You can replace it with your own MongoDB URI directly here)
-const MONGO_URI = "mongodb+srv://arivu:1234@cluster0.jdkdlsa.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";  // Replace with your actual MongoDB URI
+// MongoDB Connection URI (Replace with your MongoDB URI)
+const MONGO_URI = "mongodb+srv://arivu:1234@cluster0.jdkdlsa.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 
 // MongoDB connection setup using Mongoose
 mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
@@ -23,12 +27,95 @@ mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
 // MongoDB User Schema
 const userSchema = new mongoose.Schema({
   name: String,
-  userId: String,
+  email: String,
+  mobile: String,
+  googleId: { type: String, unique: true }
 });
 
 const User = mongoose.model("User", userSchema);
 
-// POST Route: To save user data (name and userId)
+// Google OAuth Client ID
+const GOOGLE_CLIENT_ID = "167652175288-rrsgo740sbsecv9tuond77vt05fsamfm.apps.googleusercontent.com";  // Replace with your actual Google Client ID
+
+// POST Route: Google OAuth login (Login/Register)
+app.post("/google-auth", async (req, res) => {
+  const { token } = req.body;
+
+  try {
+    // Verify the Google token
+    const googleData = await axios.post(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${token}`
+    );
+
+    const { sub: googleId, name, email } = googleData.data;
+
+    // Check if the user exists in the database
+    let user = await User.findOne({ googleId });
+
+    if (!user) {
+      // If the user doesn't exist, create a new user
+      user = new User({ name, email, googleId });
+      await user.save();
+    }
+
+    // Generate a JWT token for session management
+    const jwtToken = jwt.sign({ userId: user._id }, "your-secret-key", { expiresIn: "1h" });
+
+    // Send the JWT token as a cookie
+    res.cookie("auth_token", jwtToken, { httpOnly: true, secure: true, sameSite: "None" });
+    
+    res.status(200).json({ user, message: "Login/Register successful" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error during Google authentication", error: err.message });
+  }
+});
+
+// Middleware to check if the user is authenticated
+const authMiddleware = (req, res, next) => {
+  const token = req.cookies.auth_token;
+
+  if (!token) {
+    return res.status(403).json({ message: "Authentication required" });
+  }
+
+  jwt.verify(token, "your-secret-key", (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ message: "Invalid token" });
+    }
+    req.userId = decoded.userId;
+    next();
+  });
+};
+
+// GET Route: Fetch user profile (user-specific data)
+app.get("/profile", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.status(200).json(user);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching user profile", error: err.message });
+  }
+});
+
+// PUT Route: Update user profile (editable fields like name, mobile)
+app.put("/profile", authMiddleware, async (req, res) => {
+  const { name, mobile } = req.body;
+  try {
+    const user = await User.findByIdAndUpdate(req.userId, { name, mobile }, { new: true });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.status(200).json({ message: "Profile updated successfully", user });
+  } catch (err) {
+    res.status(500).json({ message: "Error updating profile", error: err.message });
+  }
+});
+
+// POST Route: To save user data (name, userId) for other forms if needed
 app.post("/add-user", async (req, res) => {
   const { name, userId } = req.body;
   try {
@@ -40,55 +127,10 @@ app.post("/add-user", async (req, res) => {
   }
 });
 
-// GET Route: To fetch user by userId
-app.get("/get-user/:userId", async (req, res) => {
-  const { userId } = req.params;
-  try {
-    const user = await User.findOne({ userId });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-    res.json({ name: user.name });
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching user", error: err.message });
-  }
-});
-
-// POST Route: Google Register/Login
-const client = new OAuth2Client('167652175288-rrsgo740sbsecv9tuond77vt05fsamfm.apps.googleusercontent.com'); // Replace with your actual Google Client ID
-
-app.post('/google-auth', async (req, res) => {
-  const { token } = req.body;
-
-  try {
-    const ticket = await client.verifyIdToken({
-      idToken: token,
-      audience: '167652175288-rrsgo740sbsecv9tuond77vt05fsamfm.apps.googleusercontent.com', // Replace with your actual Google Client ID
-    });
-
-    const payload = ticket.getPayload();
-    const { sub, email, name } = payload;
-
-    let user = await User.findOne({ userId: sub });
-
-    if (!user) {
-      user = new User({
-        name: name || email,
-        userId: sub,
-      });
-      await user.save();
-    }
-
-    res.status(200).json({ message: "User authenticated successfully", name: user.name });
-  } catch (error) {
-    console.error(error);
-    res.status(401).json({ message: "Invalid Google token", error: error.message });
-  }
-});
-
-// Root route
-app.get('/', (req, res) => {
-  res.send('Hello, this is the backend server!');
+// Route to log out (clear session cookie)
+app.post("/logout", (req, res) => {
+  res.clearCookie("auth_token", { httpOnly: true, secure: true, sameSite: "None" });
+  res.status(200).json({ message: "Logged out successfully" });
 });
 
 // Start the Express server
