@@ -4,6 +4,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const { OAuth2Client } = require('google-auth-library'); // Added for Google Auth
 
 const app = express();
 
@@ -13,7 +14,6 @@ app.use(express.json()); // To handle JSON body data
 
 // MongoDB Connection URI (You can replace it with your own MongoDB URI directly here)
 const MONGO_URI = "mongodb+srv://arivu:1234@cluster0.jdkdlsa.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";  // Replace with your actual MongoDB URI
-
 
 // MongoDB connection setup using Mongoose
 mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
@@ -32,7 +32,6 @@ const User = mongoose.model("User", userSchema);
 app.post("/add-user", async (req, res) => {
   const { name, userId } = req.body;
   try {
-    // Creating a new user and saving to MongoDB
     const newUser = new User({ name, userId });
     await newUser.save();
     res.status(201).json({ message: "User added successfully!" });
@@ -45,7 +44,6 @@ app.post("/add-user", async (req, res) => {
 app.get("/get-user/:userId", async (req, res) => {
   const { userId } = req.params;
   try {
-    // Find user by userId in MongoDB
     const user = await User.findOne({ userId });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -56,11 +54,45 @@ app.get("/get-user/:userId", async (req, res) => {
   }
 });
 
+// POST Route: Google Register/Login
+const client = new OAuth2Client('167652175288-rrsgo740sbsecv9tuond77vt05fsamfm.apps.googleusercontent.com'); // Replace with your actual Google Client ID
+
+app.post('/google-auth', async (req, res) => {
+  const { token } = req.body;
+
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: '167652175288-rrsgo740sbsecv9tuond77vt05fsamfm.apps.googleusercontent.com', // Replace with your actual Google Client ID
+    });
+
+    const payload = ticket.getPayload();
+    const { sub, email, name } = payload;
+
+    let user = await User.findOne({ userId: sub });
+
+    if (!user) {
+      user = new User({
+        name: name || email,
+        userId: sub,
+      });
+      await user.save();
+    }
+
+    res.status(200).json({ message: "User authenticated successfully", name: user.name });
+  } catch (error) {
+    console.error(error);
+    res.status(401).json({ message: "Invalid Google token", error: error.message });
+  }
+});
+
+// Root route
+app.get('/', (req, res) => {
+  res.send('Hello, this is the backend server!');
+});
+
 // Start the Express server
-const PORT = process.env.PORT || 5000; 
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-app.get('/', (req, res) => {
-    res.send('Hello, this is the backend server!');
-  });
