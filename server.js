@@ -11,7 +11,7 @@ const app = express();
 
 // Middleware setup
 app.use(cors({
-  origin: 'http://localhost:3000', // Update with your frontend URL
+  origin: 'https://arivutestfullstack.netlify.app/', // Update with your frontend URL
   credentials: true
 }));
 app.use(express.json()); // Parse JSON bodies
