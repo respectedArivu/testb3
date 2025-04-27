@@ -1,6 +1,3 @@
-
-// server.js
-
 // Importing required dependencies
 const express = require("express");
 const mongoose = require("mongoose");
@@ -12,7 +9,7 @@ const axios = require("axios");
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({ origin: "http://localhost:3000", credentials: true })); // Allowing frontend to make requests with credentials
 app.use(express.json()); // To handle JSON body data
 app.use(cookieParser()); // To handle cookies for session management
 
@@ -63,7 +60,7 @@ app.post("/google-auth", async (req, res) => {
 
     // Send the JWT token as a cookie
     res.cookie("auth_token", jwtToken, { httpOnly: true, secure: true, sameSite: "None" });
-    
+
     res.status(200).json({ user, message: "Login/Register successful" });
   } catch (err) {
     console.error(err);
